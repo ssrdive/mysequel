@@ -18,6 +18,12 @@ type InsertTable interface {
 	Transaction() *sql.Tx
 }
 
+// QueryRunner interface allows QueryToStructs to
+// be passed in *sql.DB and *sql.Tx instances at the same time
+type QueryRunner interface {
+	Query(string, ...interface{}) (*sql.Rows, error)
+}
+
 // NewNullString fuctions returns a NULL if the passed string is empty
 func NewNullString(s string) sql.NullString {
 	if len(s) == 0 {
@@ -133,7 +139,7 @@ func rowsToStructs(rows *sql.Rows, dest interface{}) error {
 
 // QueryToStructs takes struct slice pointer, database instance, SQL query
 // and placeholders and returns populates the slice with the result structs.
-func QueryToStructs(dest interface{}, db *sql.DB, q string, args ...interface{}) error {
+func QueryToStructs(dest interface{}, db QueryRunner, q string, args ...interface{}) error {
 	rows, err := db.Query(q, args...)
 	if err != nil {
 		return err
