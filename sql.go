@@ -3,6 +3,8 @@ package mysequel
 
 import (
 	"database/sql"
+	"errors"
+	"reflect"
 
 	sq "github.com/Masterminds/squirrel"
 )
@@ -96,4 +98,47 @@ func Update(t UpdateTable) (int64, error) {
 		return 0, err
 	}
 	return r, err
+}
+
+func rowsToStructs(rows *sql.Rows, dest interface{}) error {
+	// Dereference the pointer to the slice passed
+	destv := reflect.ValueOf(dest).Elem()
+
+	// Create a struct of passed slice pointer type
+	rowp := reflect.New(destv.Type().Elem())
+	rowv := rowp.Elem()
+
+	// Checks whether the struct field count matches the
+	// length of the returned row columns
+	if cols, _ := rows.Columns(); rowv.NumField() != len(cols) {
+		return errors.New("Struct field count does not match column count")
+	}
+
+	args := make([]interface{}, rowv.NumField())
+	for i := 0; i < rowv.NumField(); i++ {
+		args[i] = rowv.Field(i).Addr().Interface()
+	}
+
+	// Loop through result set
+	for rows.Next() {
+		if err := rows.Scan(args...); err != nil {
+			return err
+		}
+
+		destv.Set(reflect.Append(destv, rowv))
+	}
+
+	return nil
+}
+
+// QueryToStructs takes struct slice pointer, database instance, SQL query
+// and placeholders and returns populates the slice with the result structs.
+func QueryToStructs(dest interface{}, db *sql.DB, q string, args ...interface{}) error {
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		return err
+	}
+
+	defer rows.Close()
+	return rowsToStructs(rows, dest)
 }
